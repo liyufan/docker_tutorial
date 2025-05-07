@@ -1,5 +1,5 @@
 # 运行 ROS
-安装完 docker 后，就可以运行 ROS 了。ROS 的 docker 镜像在 [Docker Hub](https://hub.docker.com/_/ros) 上可以找到，如果要运行 Desktop 版本的 ROS：[OSRF's Docker Hub](https://hub.docker.com/r/osrf/ros). 所有 ROS1 和 ROS2 的 docker 镜像都可以在上面两个链接找到（在 Tags 下搜索即可）。下面以运行目前项目最常用的 ROS Noetic 为例，其他版本的 ROS 也类似。
+安装完 docker 后，就可以运行 ROS 了。ROS 的 docker 镜像在 [Docker Hub](https://hub.docker.com/_/ros) 上可以找到，如果要运行 Desktop 版本的 ROS：[OSRF's Docker Hub](https://hub.docker.com/r/osrf/ros)。所有 ROS1 和 ROS2 的 docker 镜像都可以在上面两个链接找到（在 Tags 下搜索即可），各个版本的区别（如 core 和 desktop）见：[ROS1](https://ros.org/reps/rep-0150.html) 和 [ROS2](https://ros.org/reps/rep-2001.html)。下面以运行目前项目最常用的 ROS Noetic 为例，其他版本的 ROS 也类似。
 
 1. 拉取镜像
 ```bash
@@ -47,12 +47,13 @@ docker run -it \
 - `-d`: 后台运行容器
 - `--rm`: 容器停止后自动删除容器
 - `-p <host_port>:<container_port>`: 将主机的端口映射到容器的端口
-> ⚠️ **注意** ：如果使用了`--network host`参数，则不需要使用`-p`参数，因为容器会直接使用主机的网络。如果使用了`-p`参数，则不需要使用`--network host`参数，因为容器会使用 NAT 网络。
+> ⚠️ **注意** ：如果使用了`--network host`参数，则不能使用`-p`参数，因为容器会直接使用主机的网络。如果使用了`-p`参数，则不能使用`--network host`参数，因为容器会使用 NAT 网络。
 - `-v <host_path>:<container_path>`: 将主机的目录挂载到容器中（主机上目录不存在时会自动创建）
-> ⚠️ **注意** ：谨慎使用`-v`挂载系统目录，任何对挂载目录的修改都会直接影响到主机上的目录，可能会导致系统崩溃或数据丢失。建议使用`-v`挂载工作目录或数据目录。同时，如果创建容器前`<container_path>`已经存在，则会覆盖容器内的目录。
+- `--mount type=bind,source=<host_path>,target=<container_path>`: 将主机的目录挂载到容器中（主机上目录不存在时会报错）
+> ⚠️ **注意** ：谨慎挂载系统目录，任何对挂载目录的修改都会直接影响到主机上的目录，可能会导致系统崩溃或数据丢失，建议挂载工作目录或数据目录。同时，如果创建容器前`<container_path>`已经存在，则会覆盖容器内的目录。
 - `--gpus all`: 使用所有 GPU
-> ⚠️ **注意** ：如果使用了`--gpus all`参数，则需要安装 NVIDIA Container Toolkit，见 [GPU 支持](GPU.md)。
-- `--privileged`: 以特权模式运行容器，允许容器访问主机的所有设备（慎用）
+> ⚠️ **注意** ：如果使用了`--gpus`参数，则需要安装 NVIDIA Container Toolkit，见 [GPU 支持](GPU.md)。
+- `--privileged`: 以特权模式运行容器，允许容器访问主机的所有设备（慎用）。典型例子是允许执行`sysctl -p`命令，修改内核参数。
 3. 运行成功后，容器内的命令行提示符会变成`root@<hostname>:~#`，说明已经进入了容器，可以使用`roscore`命令启动 ROS 核心。执行如下命令来安装镜像最小化时被删除的包，以恢复一个完整的 Ubuntu 系统（可选）：
 ```bash
 unminimize
@@ -69,12 +70,12 @@ docker start noetic && docker attach noetic
 ```
 前者启动容器，后者附加到容器的终端。注意：如果容器已经停止，则需要使用`docker start noetic`命令先启动容器，然后再使用`docker attach noetic`命令附加到容器的终端。
 
-如果在多个终端中运行`docker attach`命令，在一个终端中运行命令，你会发现在其他终端中也会看到相同的输出，这个是因为`docker attach`命令会将容器的标准输入输出流附加到当前终端中，所以在一个终端中运行命令，其他终端也会看到相同的输出。这样一来，如果在一个终端中运行`exit`命令，其他终端也会退出容器，这样就会导致容器停止运行。为了避免这个问题，可以使用`docker exec`命令在容器中开启一个新的终端，这样在一个终端中运行`exit`命令，其他终端不会受到影响。
+如果在多个终端中运行`docker attach`命令，在一个终端中运行命令，你会发现在其他终端中也会看到相同的输出，这是因为`docker attach`命令会将容器的标准输入输出流附加到当前终端中。因此，如果在一个终端中运行`exit`，就会导致容器停止运行，其他终端也会退出。为了避免这个问题，可以使用`docker exec`命令在容器中开启一个新的终端，这样在一个终端中运行`exit`，其他终端不会受到影响。
 - 如果要开启一个新的终端窗口，可以使用`docker exec`命令：
 ```bash
 docker exec -it noetic bash
 ```
-这个命令会在容器中开启一个新的 bash 终端，类似于在容器中运行`bash`命令，这样执行`exit`后容器也不会停止运行。这样做的好处是可以在一个终端中运行命令，在另一个终端中查看输出，这样就不会影响容器的运行了。同时，当多人使用同一个容器时（例如 SSH 连入同一个容器），也可以使用`docker exec`命令在容器中开启一个新的终端，这样就不会影响其他人的操作了。
+这个命令会在容器中开启一个新的 bash 终端，类似于在容器中运行`bash`命令，执行`exit`后容器也不会停止运行。这样做的好处是可以在一个终端中运行命令，在另一个终端中查看输出，而不会影响容器的运行。同时，当多人使用同一个容器时（例如 SSH 连入同一个容器），也可以使用`docker exec`命令在容器中开启一个新的终端，就不会影响其他人的操作。
 - 停止容器：
 ```bash
 docker stop noetic
@@ -94,4 +95,17 @@ docker ps -a
 - 删除镜像：
 ```bash
 docker rmi osrf/ros:noetic-desktop-full
+```
+如果当前镜像被容器使用，则需要先删除容器，然后再删除镜像，或者使用`-f`参数强制删除：
+```bash
+docker rmi -f osrf/ros:noetic-desktop-full
+```
+- 从主机拷贝文件到容器：
+```bash
+docker cp <host_path> <container_id>:<container_path>
+```
+> ⚠️ **注意** ：虽然按照[官方文档](https://docs.docker.com/reference/cli/docker/container/cp)，此命令相当于`cp -a`，不会拷贝文件所有者信息，只会拷贝权限，但亲测并非如此，因此拷贝 SSH 公钥到容器后，文件所有者若还是主机用户而非 root，会导致 SSH fallback 到密码登录，请自行使用`chown`命令修改文件所有者为 root。
+- 从容器拷贝文件到主机：
+```bash
+docker cp <container_id>:<container_path> <host_path>
 ```
