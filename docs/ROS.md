@@ -27,7 +27,6 @@ docker run -it \
     --name noetic \
     -h $HOSTNAME \
     -w /root \
-    --network host \
     osrf/ros:noetic-desktop-full \
     bash
 ```
@@ -39,26 +38,41 @@ docker run -it \
 - `--name noetic`: 给容器起个名字，方便后续操作
 - `-h $HOSTNAME`: 将容器的主机名设置为主机的主机名
 - `-w /root`: 将容器的工作目录设置为 `/root`
-- `--network host`: 使用主机的网络，以便容器可以访问主机的网络，方便容器直接访问连接到主机的设备
 - `osrf/ros:noetic-desktop-full`: 使用的镜像
 - `bash`: 运行的命令
 
 其他常用参数（详见[docker run cli](https://docs.docker.com/reference/cli/docker/container/run)）：
 - `-d`: 后台运行容器
 - `--rm`: 容器停止后自动删除容器
+- `--network host`: 使用主机的网络，以便容器可以访问主机的网络，方便容器直接访问连接到主机的设备
 - `-p <host_port>:<container_port>`: 将主机的端口映射到容器的端口
-> ⚠️ **注意** ：如果使用了`--network host`参数，则不能使用`-p`参数，因为容器会直接使用主机的网络。如果使用了`-p`参数，则不能使用`--network host`参数，因为容器会使用 NAT 网络。
+> ⚠️ **注意**：如果使用了`--network host`参数，则不能使用`-p`参数，因为容器会直接使用主机的网络。如果使用了`-p`参数，则不能使用`--network host`参数，因为容器会使用 NAT 网络。
 - `-v <host_path>:<container_path>`: 将主机的目录挂载到容器中（主机上目录不存在时会自动创建）
 - `--mount type=bind,source=<host_path>,target=<container_path>`: 将主机的目录挂载到容器中（主机上目录不存在时会报错）
-> ⚠️ **注意** ：谨慎挂载系统目录，任何对挂载目录的修改都会直接影响到主机上的目录，可能会导致系统崩溃或数据丢失，建议挂载工作目录或数据目录。同时，如果创建容器前`<container_path>`已经存在，则会覆盖容器内的目录。
+
+⚠️ **强烈建议**：创建容器时挂载一个工作目录到容器中，方便主机和容器之间共享数据。可以使用如下命令创建一个名为`ros_ws`的工作目录，并将其挂载到容器的 `/root/ros_ws` 目录下：
+```bash
+cd && mkdir ros_ws
+docker run -it \
+    -e DISPLAY \
+    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    --name noetic \
+    -h $HOSTNAME \
+    -w /root \
+    --mount type=bind,source=./ros_ws,target=/root/ros_ws \
+    osrf/ros:noetic-desktop-full \
+    bash
+```
+`-v`和`--mount`参数支持使用主机上的相对路径，但前面必须加上`./`或`../`之类，否则会报错（如上面的命令改成`source=ros_ws`）。也可以使用绝对路径，如`/home/user/ros_ws`或`$HOME/ros_ws`。目前还不支持使用`~`符号来表示主目录。
+> ⚠️ **注意**：谨慎挂载系统目录，任何对挂载目录的修改都会直接影响到主机上的目录，可能会导致系统崩溃或数据丢失，建议挂载工作目录或数据目录。同时，如果创建容器前`<container_path>`已经存在，则会覆盖容器内的目录。
 - `--gpus all`: 使用所有 GPU
-> ⚠️ **注意** ：如果使用了`--gpus`参数，则需要安装 NVIDIA Container Toolkit，见 [GPU 支持](GPU.md)。
-- `--privileged`: 以特权模式运行容器，允许容器访问主机的所有设备（慎用）。典型例子是允许执行`sysctl -p`命令，修改内核参数。
-3. 运行成功后，容器内的命令行提示符会变成`root@<hostname>:~#`，说明已经进入了容器，可以使用`roscore`命令启动 ROS 核心。执行如下命令来安装镜像最小化时被删除的包，以恢复一个完整的 Ubuntu 系统（可选）：
+> ⚠️ **注意**：如果使用了`--gpus`参数，则需要安装 NVIDIA Container Toolkit，见 [GPU 支持](GPU.md)。
+- （⚠️ **慎用**）`--privileged`: 以特权模式运行容器，允许容器访问主机的所有设备。典型例子是允许执行`sysctl -p`命令，修改内核参数。
+3. （可选）运行成功后，容器内的命令行提示符会变成`root@<hostname>:~#`，说明已经进入了容器，可以使用`roscore`命令启动 ROS 核心。执行如下命令来安装镜像最小化时被删除的包，以恢复一个完整的 Ubuntu 系统：
 ```bash
 unminimize
 ```
-4. 运行完毕后，可以使用`exit`命令退出容器。
+4. 运行完毕后，可以使用`exit`命令或`Ctrl+D`退出容器。
 5. 其它命令：
 - 重新进入容器：
 ```bash
@@ -104,7 +118,7 @@ docker rmi -f osrf/ros:noetic-desktop-full
 ```bash
 docker cp <host_path> <container_id>:<container_path>
 ```
-> ⚠️ **注意** ：虽然按照[官方文档](https://docs.docker.com/reference/cli/docker/container/cp)，此命令相当于`cp -a`，不会拷贝文件所有者信息，只会拷贝权限，但亲测并非如此，因此拷贝 SSH 公钥到容器后，文件所有者若还是主机用户而非 root，会导致 SSH fallback 到密码登录，请自行使用`chown`命令修改文件所有者为 root。
+> ⚠️ **注意**：虽然按照[官方文档](https://docs.docker.com/reference/cli/docker/container/cp)，此命令相当于`cp -a`，不会拷贝文件所有者信息，只会拷贝权限，但亲测并非如此，因此拷贝 SSH 公钥到容器后，文件所有者若还是主机用户而非 root，会导致 SSH fallback 到密码登录，请自行使用`chown`命令修改文件所有者为 root。
 - 从容器拷贝文件到主机：
 ```bash
 docker cp <container_id>:<container_path> <host_path>

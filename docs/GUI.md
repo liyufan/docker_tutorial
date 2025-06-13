@@ -7,7 +7,7 @@
 ```bash
 docker run -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY
 ```
-部分时候主机上并没有`/tmp/.X11-unix`目录，此时需要使用`-v`参数而非`--mount`参数挂载。同时，需要在主机上运行以下命令：
+部分时候主机上并没有`/tmp/.X11-unix`目录，此时需要使用`-v`参数而非`--mount`参数挂载。同时，需要在主机上运行以下命令以允许容器访问主机的显示器：
 ```bash
 xhost +local:root
 # or
@@ -17,7 +17,7 @@ xhost +local:docker
 # or
 xhost + # Allow all users to access the X server, use with caution
 ```
-这样就可以允许容器访问主机的显示器了。注意：这个命令会将主机的用户添加到 X11 的访问列表中，可能会导致安全隐患，所以建议在使用完毕后，运行以下命令将主机的用户从 X11 的访问列表中删除：
+（可选）这个命令会将主机的用户添加到 X11 的访问列表中，可能会导致安全隐患，所以建议在使用完毕后，运行以下命令将主机的用户从 X11 的访问列表中删除：
 ```bash
 xhost -local:root
 # or
