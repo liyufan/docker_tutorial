@@ -27,6 +27,7 @@ docker run -it \
     --name noetic \
     -h $HOSTNAME \
     -w /root \
+    --privileged \
     osrf/ros:noetic-desktop-full \
     bash
 ```
@@ -38,6 +39,7 @@ docker run -it \
 - `--name noetic`: 给容器起个名字，方便后续操作
 - `-h $HOSTNAME`: 将容器的主机名设置为主机的主机名
 - `-w /root`: 将容器的工作目录设置为 `/root`
+- `--privileged`: 以特权模式运行容器，允许容器访问主机的所有设备，以便在容器中也可以挂载 U 盘等设备。另一个典型例子是允许执行`sysctl -p`命令，修改内核参数。
 - `osrf/ros:noetic-desktop-full`: 使用的镜像
 - `bash`: 运行的命令
 
@@ -59,6 +61,7 @@ docker run -it \
     --name noetic \
     -h $HOSTNAME \
     -w /root \
+    --privileged \
     --mount type=bind,source=./ros_ws,target=/root/ros_ws \
     osrf/ros:noetic-desktop-full \
     bash
@@ -67,7 +70,6 @@ docker run -it \
 > ⚠️ **注意**：谨慎挂载系统目录，任何对挂载目录的修改都会直接影响到主机上的目录，可能会导致系统崩溃或数据丢失，建议挂载工作目录或数据目录。同时，如果创建容器前`<container_path>`已经存在，则会覆盖容器内的目录。
 - `--gpus all`: 使用所有 GPU
 > ⚠️ **注意**：如果使用了`--gpus`参数，则需要安装 NVIDIA Container Toolkit，见 [GPU 支持](GPU.md)。
-- （⚠️ **慎用**）`--privileged`: 以特权模式运行容器，允许容器访问主机的所有设备。典型例子是允许执行`sysctl -p`命令，修改内核参数。
 3. （可选）运行成功后，容器内的命令行提示符会变成`root@<hostname>:~#`，说明已经进入了容器，可以使用`roscore`命令启动 ROS 核心。执行如下命令来安装镜像最小化时被删除的包，以恢复一个完整的 Ubuntu 系统：
 ```bash
 unminimize
