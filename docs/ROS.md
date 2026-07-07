@@ -28,6 +28,7 @@ docker run -it \
     -h $HOSTNAME \
     -w /root \
     --privileged \
+    --gpus all \
     osrf/ros:noetic-desktop-full \
     bash
 ```
@@ -40,6 +41,8 @@ docker run -it \
 - `-h $HOSTNAME`: 将容器的主机名设置为主机的主机名
 - `-w /root`: 将容器的工作目录设置为 `/root`
 - `--privileged`: 以特权模式运行容器，允许容器访问主机的所有设备，以便在容器中也可以挂载 U 盘等设备。另一个典型例子是允许执行`sysctl -p`命令，修改内核参数。
+- `--gpus all`: 使用所有 GPU
+> ⚠️ **注意**：如果使用了`--gpus`参数，则需要安装 NVIDIA Container Toolkit，见 [GPU 支持](GPU.md)。
 - `osrf/ros:noetic-desktop-full`: 使用的镜像
 - `bash`: 运行的命令
 
@@ -49,6 +52,40 @@ docker run -it \
 - `--network host`: 使用主机的网络，以便容器可以访问主机的网络，方便容器直接访问连接到主机的设备
 - `-p <host_port>:<container_port>`: 将主机的端口映射到容器的端口
 > ⚠️ **注意**：如果使用了`--network host`参数，则不能使用`-p`参数，因为容器会直接使用主机的网络。如果使用了`-p`参数，则不能使用`--network host`参数，因为容器会使用 NAT 网络。
+
+❗️❗️❗️ **警告**：使用`--network host`且不使用`-h`参数时，会自动将容器的主机名以及`/etc/hosts`文件设置为和主机一致，此时切勿再使用`-h <hostname>`参数强行覆写主机名。如果强行覆写，会导致容器内无法解析自己的主机名，启动 roscore 时会失败，如下：
+```console
+$ docker run --rm --network host -h CONTAINER osrf/ros:noetic-desktop-full bash -c 'echo $HOSTNAME; echo ----------; cat /etc/hostname; echo ----------; cat /etc/hosts'
+CONTAINER
+----------
+CONTAINER
+----------
+127.0.0.1 localhost
+127.0.1.1 <hostname of the host machine>
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+```
+如上所示，容器的主机名为`CONTAINER`，但是 hosts 文件中并没有`CONTAINER`的解析记录，导致无法解析自己的主机名。即使后续在容器内使用`hostname`命令修改主机名，或修改`/etc/hostname`和`/etc/hosts`文件，重启容器也会自动恢复，所以千万不要在使用`--network host`参数时指定`-h`参数。但是不使用`--network host`参数时，用`-h`参数指定容器的主机名会被自动添加到`/etc/hosts`文件中：
+```console
+$ docker run --rm -h CONTAINER osrf/ros:noetic-desktop-full bash -c 'echo $HOSTNAME; echo ----------; cat /etc/hostname; echo ----------; cat /etc/hosts'
+CONTAINER
+----------
+CONTAINER
+----------
+127.0.0.1	localhost
+::1	localhost ip6-localhost ip6-loopback
+fe00::	ip6-localnet
+ff00::	ip6-mcastprefix
+ff02::1	ip6-allnodes
+ff02::2	ip6-allrouters
+172.17.0.2	CONTAINER
+```
+此时可以任意指定容器的主机名，但是同样，容器一旦创建，就无法修改主机名了，除非删除容器重新创建。
 - `-v <host_path>:<container_path>`: 将主机的目录挂载到容器中（主机上目录不存在时会自动创建）
 - `--mount type=bind,source=<host_path>,target=<container_path>`: 将主机的目录挂载到容器中（主机上目录不存在时会报错）
 
@@ -63,13 +100,12 @@ docker run -it \
     -w /root \
     --privileged \
     --mount type=bind,source=./ros_ws,target=/root/ros_ws \
+    --gpus all \
     osrf/ros:noetic-desktop-full \
     bash
 ```
 `-v`和`--mount`参数支持使用主机上的相对路径，但前面必须加上`./`或`../`之类，否则会报错（如上面的命令改成`source=ros_ws`）。也可以使用绝对路径，如`/home/user/ros_ws`或`$HOME/ros_ws`。目前还不支持使用`~`符号来表示主目录。
 > ⚠️ **注意**：谨慎挂载系统目录，任何对挂载目录的修改都会直接影响到主机上的目录，可能会导致系统崩溃或数据丢失，建议挂载工作目录或数据目录。同时，如果创建容器前`<container_path>`已经存在，则会覆盖容器内的目录。
-- `--gpus all`: 使用所有 GPU
-> ⚠️ **注意**：如果使用了`--gpus`参数，则需要安装 NVIDIA Container Toolkit，见 [GPU 支持](GPU.md)。
 3. （可选）运行成功后，容器内的命令行提示符会变成`root@<hostname>:~#`，说明已经进入了容器，可以使用`roscore`命令启动 ROS 核心。执行如下命令来安装镜像最小化时被删除的包，以恢复一个完整的 Ubuntu 系统：
 ```bash
 unminimize
